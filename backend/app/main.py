@@ -56,6 +56,8 @@ _load_env_file()
 # Import des routers après le chargement des variables d'environnement
 from .guidance import router as guidance_router
 from .describe import router as describe_router
+from .users import router as users_router
+from .database import init_db
 
 # Création de l'application FastAPI avec métadonnées
 app = FastAPI(
@@ -63,6 +65,17 @@ app = FastAPI(
     description="API d'assistance IA pour personnes à mobilité réduite",
     version="1.0.0",
 )
+
+
+@app.on_event("startup")
+def startup_event():
+    """
+    Événement de démarrage de l'application.
+
+    Initialise la base de données en créant toutes les tables
+    si elles n'existent pas encore.
+    """
+    init_db()
 
 # Configuration CORS permissive pour le développement
 # Permet à toutes les origines d'accéder à l'API
@@ -140,5 +153,7 @@ def health():
 # Enregistrement des routes avec leurs préfixes
 # - /api/guidance/* : Enrichissement des détections et conseils
 # - /api/* : Endpoints Gemini et Groq pour description d'images
+# - /api/users/* : Gestion utilisateurs, profils, préférences
 app.include_router(guidance_router, prefix="/api/guidance", tags=["guidance"])
 app.include_router(describe_router, prefix="/api", tags=["describe"])
+app.include_router(users_router, prefix="/api/users", tags=["users"])
