@@ -1,0 +1,117 @@
+# =============================================================================
+# Vision360 Mobile - Configuration Flutter
+# =============================================================================
+# Application mobile d'assistance IA pour personnes à mobilité réduite
+# =============================================================================
+
+name: mobile_flutter
+description: "Application Vision360 - Assistance IA pour PMR (Personnes à Mobilité Réduite)"
+
+# Package privé - ne pas publier sur pub.dev
+publish_to: 'none'
+
+# Version de l'application
+# Format: MAJOR.MINOR.PATCH+BUILD
+# Android: versionName=1.0.0, versionCode=1
+# iOS: CFBundleShortVersionString=1.0.0, CFBundleVersion=1
+version: 1.0.0+1
+
+# =============================================================================
+# Environnement Dart/Flutter
+# =============================================================================
+environment:
+  sdk: ^3.6.2
+
+# =============================================================================
+# Dépendances de production
+# =============================================================================
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ---------------------------------------------------------------------------
+  # UI/UX
+  # ---------------------------------------------------------------------------
+  # Icônes style iOS pour widgets Cupertino
+  cupertino_icons: ^1.0.8
+
+  # ---------------------------------------------------------------------------
+  # Réseau
+  # ---------------------------------------------------------------------------
+  # Client HTTP pour appels vers l'API Vision360
+  # Utilisé pour POST vers /describe/gemini et /describe/groq
+  http: ^1.3.0
+
+  # ---------------------------------------------------------------------------
+  # Caméra
+  # ---------------------------------------------------------------------------
+  # Plugin caméra officiel Flutter
+  # Permet la capture d'images pour analyse par l'IA
+  camera: ^0.11.0+2
+
+  # ---------------------------------------------------------------------------
+  # Stockage local
+  # ---------------------------------------------------------------------------
+  # Persistance clé-valeur pour profils utilisateurs et sessions
+  shared_preferences: ^2.3.3
+
+  # Accès au système de fichiers pour export de l'historique
+  path_provider: ^2.1.5
+
+  # ---------------------------------------------------------------------------
+  # Synthèse vocale
+  # ---------------------------------------------------------------------------
+  # Text-to-Speech pour lecture des recommandations
+  # Supporte français (fr-FR) et autres langues
+  flutter_tts: ^4.2.3
+
+  # ---------------------------------------------------------------------------
+  # Reconnaissance vocale
+  # ---------------------------------------------------------------------------
+  # Speech-to-Text pour commandes vocales utilisateur
+  speech_to_text: ^7.0.0
+
+  # ---------------------------------------------------------------------------
+  # GPS & Cartographie
+  # ---------------------------------------------------------------------------
+  # Carte OpenStreetMap (gratuit, sans clé API)
+  flutter_map: ^7.0.1
+  # Coordonnées géographiques (requis par flutter_map)
+  latlong2: ^0.9.1
+  # Accès GPS du téléphone
+  geolocator: ^13.0.0
+
+# =============================================================================
+# Dépendances de développement
+# =============================================================================
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Règles de linting recommandées par Flutter
+  # Active les bonnes pratiques de code
+  flutter_lints: ^5.0.0
+
+# =============================================================================
+# Configuration Flutter
+# =============================================================================
+flutter:
+  # Active les icônes Material Design
+  uses-material-design: true
+
+  # ---------------------------------------------------------------------------
+  # Assets (non utilisés actuellement)
+  # ---------------------------------------------------------------------------
+  # Pour ajouter des images, décommenter et lister :
+  # assets:
+  #   - images/logo.png
+  #   - images/icons/
+
+  # ---------------------------------------------------------------------------
+  # Fonts personnalisées (non utilisées actuellement)
+  # ---------------------------------------------------------------------------
+  # Pour ajouter des polices, décommenter :
+  # fonts:
+  #   - family: OpenDyslexic
+  #     fonts:
+  #       - asset: fonts/OpenDyslexic-Regular.ttf

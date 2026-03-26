@@ -1,0 +1,48 @@
+name: Diagnose Google Drive access
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose-drive:
+    name: Test accès Google Drive
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python (optional)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install rclone & jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y rclone jq
+
+      - name: Write Google service account credentials
+        run: |
+          echo '${{ secrets.GDRIVE_CREDENTIALS }}' > sa.json
+          jq -e . sa.json >/dev/null
+
+      - name: Configure rclone
+        run: |
+          rclone config create gdrive drive scope=drive service_account_file=sa.json
+
+      - name: Test upload to Google Drive
+        env:
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          echo "hello $(date -u)" > hello.txt
+          echo "Uploading test file to Drive folder: ${GDRIVE_FOLDER_ID}"
+          rclone copy hello.txt "gdrive:${GDRIVE_FOLDER_ID}" --drive-server-side-across-configs
+          echo "✅ Upload successful!"
+
+      - name: List contents of folder
+        if: always()
+        env:
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          echo "📂 Listing latest files:"
+          rclone lsf "gdrive:${GDRIVE_FOLDER_ID}" --max-depth 1 | tail -n 10 || true

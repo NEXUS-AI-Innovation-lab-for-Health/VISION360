@@ -1,0 +1,93 @@
+{
+  "_comment": "Ontologie Vision360 - Définition des profils de détection et synonymes",
+  "_description": "Ce fichier définit les classes d'objets à détecter selon le contexte d'utilisation (obstacles urbains, supermarché, restaurant). Chaque profil contient une liste de classes COCO-SSD pertinentes et leurs synonymes en français/anglais pour améliorer le matching.",
+
+  "obstacles": {
+    "_comment": "Profil pour la navigation urbaine et la détection d'obstacles",
+    "label": "Obstacles urbains",
+    "classes": ["person", "crowd", "stairs", "curb", "door", "cone", "barrier", "puddle"],
+    "synonyms": {
+      "person": ["people", "human", "personne"],
+      "crowd": ["group", "queue"],
+      "stairs": ["stair", "staircase", "escalier"],
+      "curb": ["step", "dénivelé", "trottoir"],
+      "door": ["porte", "entry"],
+      "cone": ["traffic cone", "pylon"],
+      "barrier": ["bollard", "barrière", "work zone"],
+      "puddle": ["water", "spill", "flaque"]
+    }
+  },
+
+  "retail": {
+    "_comment": "Profil pour le supermarché et les courses",
+    "label": "Supermarché / retail",
+    "classes": ["product", "shelf", "price_tag", "barcode", "cart", "basket", "bottle", "can", "produce", "package"],
+    "synonyms": {
+      "product": ["item", "article"],
+      "shelf": ["rayon", "gondole"],
+      "price_tag": ["étiquette", "price"],
+      "barcode": ["code-barres"],
+      "cart": ["caddie", "trolley"],
+      "basket": ["panier"],
+      "bottle": ["drink", "boisson"],
+      "can": ["boîte", "canette"],
+      "produce": ["fruit", "vegetable"],
+      "package": ["box", "pack"]
+    }
+  },
+
+  "restaurant": {
+    "_comment": "Profil pour le restaurant et la cantine",
+    "label": "Restaurant / cantine",
+    "classes": ["table", "chair", "tray", "cutlery", "plate", "glass", "menu", "counter", "terminal", "dish"],
+    "synonyms": {
+      "table": ["tabletop", "desk"],
+      "chair": ["seat"],
+      "tray": ["plateau"],
+      "cutlery": ["fork", "knife", "spoon", "couteau", "fourchette"],
+      "plate": ["dish", "assiette"],
+      "glass": ["cup", "verre"],
+      "menu": ["card", "carte"],
+      "counter": ["bar", "comptoir"],
+      "terminal": ["payment", "tpv"],
+      "dish": ["meal", "plat"]
+    }
+  },
+
+  "general": {
+    "_comment": "Profil généraliste utilisant les classes COCO standard",
+    "label": "Général (COCO étendu)",
+    "classes": [
+      "person", "cell phone", "handbag", "backpack", "suitcase", "laptop", "keyboard", "mouse",
+      "remote", "tv", "book", "chair", "couch", "table", "bed", "bench", "bottle", "cup",
+      "bowl", "umbrella", "tie", "skateboard", "sports ball", "clock", "potted plant",
+      "frisbee", "scissors", "toothbrush", "hair drier"
+    ],
+    "synonyms": {
+      "cell phone": ["phone", "telephone", "smartphone", "portable"],
+      "handbag": ["sac", "bag"],
+      "backpack": ["sac a dos", "sac à dos"],
+      "suitcase": ["valise"],
+      "laptop": ["ordinateur", "pc"],
+      "keyboard": ["clavier"],
+      "mouse": ["souris"],
+      "remote": ["telecommande", "telecommande"],
+      "book": ["livre"],
+      "chair": ["seat", "chaise"],
+      "table": ["tabletop", "desk"],
+      "bench": ["banc"],
+      "bottle": ["bouteille"],
+      "cup": ["verre", "mug"],
+      "bowl": ["bol"],
+      "umbrella": ["parapluie"],
+      "tie": ["cravate"],
+      "skateboard": ["skate"],
+      "sports ball": ["ballon"],
+      "clock": ["horloge"],
+      "potted plant": ["plante"],
+      "scissors": ["ciseaux"],
+      "toothbrush": ["brosse a dents"],
+      "hair drier": ["seche cheveux", "sèche cheveux"]
+    }
+  }
+}

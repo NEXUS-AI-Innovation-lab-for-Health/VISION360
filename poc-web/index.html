@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vision360 POC Webcam</title>
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgo=" />
+    <style>
+      html, body { margin: 0; padding: 0; background: #0b0b0f; color: #eef; font-family: "Segoe UI", system-ui, Arial, sans-serif; }
+      #toolbar { position: fixed; top: 10px; left: 10px; z-index: 10; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; max-width: 96vw; background: rgba(15,15,25,0.85); padding: 10px; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+      .btn { background: #232737; color: #f6f8ff; border: 1px solid #3a3f55; padding: 6px 10px; border-radius: 6px; cursor: pointer; min-height: 32px; }
+      .btn[aria-pressed="true"] { background: #2f6bff; }
+      #stats { margin-left: 10px; color: #cfd5ff; font-size: 14px; }
+      #labels { position: fixed; bottom: 10px; left: 10px; color: #e0e4f5; font-size: 14px; max-width: 60vw; background: rgba(15,15,25,0.7); padding: 8px 10px; border-radius: 8px; }
+      #stage { position: fixed; inset: 0; display: grid; place-items: center; }
+      canvas { max-width: 100vw; max-height: 100vh; }
+      #video { display: none; }
+    </style>
+    <script>
+      async function loadScript(src) {
+        return new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = src; s.async = true;
+          s.onload = () => resolve();
+          s.onerror = () => reject(new Error('Failed ' + src));
+          document.head.appendChild(s);
+        });
+      }
+      async function loadVendors() {
+        const localTf = 'vendor/tf.min.js';
+        const localCoco = 'vendor/coco-ssd.min.js';
+        const cdnTf = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.12.0/dist/tf.min.js';
+        const cdnCoco = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2';
+        try { await loadScript(localTf); } catch(_) { await loadScript(cdnTf); }
+        try { await loadScript(localCoco); } catch(_) { await loadScript(cdnCoco); }
+      }
+      window.__vendorsReady = loadVendors();
+    </script>
+  </head>
+  <body>
+    <div id="toolbar">
+      <button id="startBtn" class="btn">Start</button>
+      <button id="ttsBtn" class="btn" aria-pressed="false">TTS</button>
+      <label>Vision profile
+        <select id="profileSel" class="btn" style="padding:4px; width:160px;">
+          <option value="" selected>custom</option>
+        </select>
+      </label>
+      <label>User profile
+        <select id="userProfileSel" class="btn" style="padding:4px; width:180px;">
+          <option value="default">Default</option>
+          <option value="wheelchair_diabetic">Wheelchair + Diabète</option>
+          <option value="allergy_peanut">Allergie arachide</option>
+          <option value="allergy_gluten">Sensibilité gluten</option>
+          <option value="visual_lowvision">Déficience visuelle</option>
+        </select>
+      </label>
+      <label>Conf
+        <input id="thr" type="range" min="0" max="1" step="0.01" value="0.5" />
+      </label>
+      <label>MinArea
+        <input id="minArea" type="range" min="0" max="0.2" step="0.005" value="0.02" />
+      </label>
+      <label>Backend
+        <select id="backendSel" class="btn" style="padding:4px;">
+          <option value="auto" selected>auto</option>
+          <option value="webgpu">webgpu</option>
+          <option value="webgl">webgl</option>
+          <option value="cpu">cpu</option>
+        </select>
+      </label>
+      <button id="geminiBtn" class="btn">Gemini</button>
+      <button id="groqBtn" class="btn">Groq</button>
+      <span id="stats">Idle</span>
+    </div>
+    <div id="stage">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas"></canvas>
+    </div>
+    <div id="labels"></div>
+    <div id="guidance" style="position:fixed; bottom:40px; right:10px; max-width:30vw; color:#9fd;">Guidance: idle</div>
+
+    <script>
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const statsEl = document.getElementById('stats');
+      const labelsEl = document.getElementById('labels');
+      const startBtn = document.getElementById('startBtn');
+      const thrEl = document.getElementById('thr');
+      const ttsBtn = document.getElementById('ttsBtn');
+      const backendSel = document.getElementById('backendSel');
+      const profileSel = document.getElementById('profileSel');
+      const userProfileSel = document.getElementById('userProfileSel');
+      const minAreaEl = document.getElementById('minArea');
+      const resSel = { value: "480" };
+      const strideSel = { value: "1" };
+      const classesInput = { value: "" };
+      const geminiBtn = document.getElementById('geminiBtn');
+      const groqBtn = document.getElementById('groqBtn');
+      const guidanceEl = document.getElementById('guidance');
+      const apiBase = 'https://vision360-backend-276274707876.europe-west1.run.app/api';
+
+      let model = null;
+      let running = false;
+      let showBoxes = true;
+      let ttsEnabled = false;
+      let lastSpeak = 0;
+      const SPEAK_COOLDOWN_MS = 2000;
+      let stride = 1;
+      let frameCount = 0;
+      let confThr = 0.5;
+      let minArea = 0.02; // fraction of frame area
+      let allowedClasses = new Set();
+      let allowedExpanded = new Set();
+      let ontology = {};
+      let synonymsLookup = {};
+      let lastEnriched = [];
+      let lastSampleMeta = null;
+      let rec = null; // MediaRecorder
+      let recChunks = [];
+      const metrics = [];
+
+      function speak(text) {
+        if (!ttsEnabled) return;
+        const now = performance.now();
+        if (now - lastSpeak < SPEAK_COOLDOWN_MS) return;
+        lastSpeak = now;
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'fr-FR';
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      }
+
+      function sideAndZone(bbox, W, H) {
+        const [x, y, w, h] = bbox;
+        const cx = x + w / 2;
+        const area = (w * h) / (W * H);
+        const side = cx < W * 0.33 ? 'left' : (cx > W * 0.66 ? 'right' : 'center');
+        const zone = area > 0.08 ? 'near' : (area > 0.03 ? 'mid' : 'far');
+        return { side, zone };
+      }
+
+      async function setupCamera() {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        video.srcObject = stream;
+        await new Promise(r => video.onloadedmetadata = r);
+        // Input size for latency; canvas will display scaled
+        const targetLong = parseInt(resSel.value, 10);
+        const W = Math.min(targetLong, video.videoWidth || targetLong);
+        const H = Math.round(W * (video.videoHeight || 480) / (video.videoWidth || 640));
+        canvas.width = W; canvas.height = H;
+        // Prepare recorder on the canvas
+        const streamOut = canvas.captureStream(30);
+        rec = new MediaRecorder(streamOut, { mimeType: 'video/webm;codecs=vp9' });
+        rec.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data); };
+        rec.onstop = () => {
+          const blob = new Blob(recChunks, { type: 'video/webm' });
+          recChunks = [];
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `vision360-${Date.now()}.webm`;
+          a.click(); URL.revokeObjectURL(url);
+        };
+      }
+
+      async function loadModel() {
+        statsEl.textContent = 'Loading model…';
+        model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+        statsEl.textContent = 'Model loaded';
+      }
+
+      async function loadOntology() {
+        try {
+          const data = await fetch('ontology.json').then(r => r.json());
+          ontology = data;
+          synonymsLookup = {};
+          Object.values(data).forEach(group => {
+            Object.entries(group.synonyms || {}).forEach(([canon, syns]) => {
+              synonymsLookup[canon.toLowerCase()] = syns.map(s => s.toLowerCase());
+            });
+          });
+          Object.entries(data).forEach(([key, group]) => {
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = group.label || key;
+            profileSel.appendChild(opt);
+          });
+          if (data.general) {
+            profileSel.value = 'general';
+            applyProfile('general');
+          } else {
+            updateAllowedFromInput(classesInput.value || '');
+          }
+        } catch (e) {
+          console.warn('Failed to load ontology', e);
+          updateAllowedFromInput(classesInput.value || '');
+        }
+      }
+
+      function rebuildAllowedExpanded() {
+        allowedExpanded = new Set();
+        if (allowedClasses.size === 0) return;
+        allowedClasses.forEach(c => {
+          allowedExpanded.add(c);
+          const syns = synonymsLookup[c] || [];
+          syns.forEach(s => allowedExpanded.add(s));
+        });
+      }
+
+      function updateAllowedFromInput(rawValue) {
+        allowedClasses.clear();
+        const raw = rawValue.trim();
+        if (raw.length === 0) {
+          rebuildAllowedExpanded();
+          return;
+        }
+        raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).forEach(c => allowedClasses.add(c));
+        rebuildAllowedExpanded();
+      }
+
+      function applyProfile(profileKey) {
+        if (!profileKey || !ontology[profileKey]) {
+          return;
+        }
+        const group = ontology[profileKey];
+        const classes = group.classes || [];
+        classesInput.value = classes.join(',');
+        updateAllowedFromInput(classesInput.value);
+      }
+
+      function buildSampleMeta(enriched) {
+        if (!enriched.length) return null;
+        const W = canvas.width, H = canvas.height;
+        const ts = Date.now();
+        return {
+          ts,
+          width: W,
+          height: H,
+          backend: tf.getBackend(),
+          confThr,
+          minArea,
+          stride,
+          allowed: Array.from(allowedClasses),
+          profile: profileSel.value || 'custom',
+          predictions: enriched.map(({ detection: p, side, zone }) => ({
+            class: p.class,
+            score: p.score,
+            zone,
+            side,
+            bbox_px: { x: p.bbox[0], y: p.bbox[1], w: p.bbox[2], h: p.bbox[3] },
+            bbox_norm: { x: p.bbox[0] / W, y: p.bbox[1] / H, w: p.bbox[2] / W, h: p.bbox[3] / H }
+          }))
+        };
+      }
+
+      function captureCanvasBlob() {
+        return new Promise((resolve, reject) => {
+          canvas.toBlob(blob => {
+            if (!blob) reject(new Error('Failed to capture canvas'));
+            else resolve(blob);
+          }, 'image/png');
+        });
+      }
+
+      async function pickBackend() {
+        const choice = backendSel.value;
+        try {
+          if (choice === 'auto') {
+            if (tf.backend().registryFactory && tf.backend().registryFactory.webgpu) {
+              await tf.setBackend('webgpu');
+            } else if (tf.backend().registryFactory && tf.backend().registryFactory.webgl) {
+              await tf.setBackend('webgl');
+            }
+          } else {
+            await tf.setBackend(choice);
+          }
+          await tf.ready();
+        } catch (e) {
+          console.warn('Backend select failed, falling back:', e);
+        }
+        statsEl.textContent = `Backend: ${tf.getBackend()}`;
+      }
+
+      async function loop() {
+        if (!running) return;
+        const t0 = performance.now();
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        let preds;
+        if (frameCount % stride === 0) {
+          preds = await model.detect(canvas, 20);
+          window.__lastPreds = preds; // cache
+        } else {
+          preds = window.__lastPreds || [];
+        }
+        const t1 = performance.now();
+
+        // Filters: confidence, area, class
+        const filtered = preds.filter(p => {
+          if (p.score < confThr) return false;
+          const areaFrac = (p.bbox[2] * p.bbox[3]) / (canvas.width * canvas.height);
+          if (areaFrac < minArea) return false;
+          if (allowedExpanded.size > 0 && !allowedExpanded.has(String(p.class).toLowerCase())) return false;
+          return true;
+        });
+
+        const enriched = filtered.map(p => {
+          const info = sideAndZone(p.bbox, canvas.width, canvas.height);
+          return { detection: p, side: info.side, zone: info.zone };
+        });
+        lastEnriched = enriched;
+        window.__lastEnriched = enriched;
+
+        let msgs = [];
+        if (showBoxes) {
+          for (const item of enriched) {
+            const p = item.detection;
+            const [x, y, w, h] = p.bbox;
+            const { side, zone } = item;
+            ctx.strokeStyle = 'rgba(0, 200, 255, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, w, h);
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(x, y - 18, ctx.measureText(p.class).width + 70, 18);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(`${p.class} ${Math.round(p.score*100)}% ${side}/${zone}`, x + 4, y - 6);
+            msgs.push(`${p.class} ${side} ${zone}`);
+          }
+        }
+
+        const dt = (t1 - t0).toFixed(1);
+        const fps = (1000 / (t1 - t0)).toFixed(1);
+        statsEl.textContent = `FPS ~${fps} | ${dt} ms | ${enriched.length} objs | ${tf.getBackend()}`;
+        labelsEl.textContent = msgs.join(' · ');
+        metrics.push({ ts: Date.now(), fps, dt, objs: enriched.length });
+
+        frameCount++;
+        requestAnimationFrame(loop);
+      }
+
+      startBtn.addEventListener('click', async () => {
+        if (!running) {
+          try {
+            await window.__vendorsReady; // ensure libs loaded
+            await pickBackend();
+            await setupCamera();
+            if (!model) await loadModel();
+            running = true;
+            startBtn.textContent = 'Stop';
+            requestAnimationFrame(loop);
+          } catch (e) {
+            console.error(e);
+            statsEl.textContent = 'Erreur caméra ou modèle';
+          }
+        } else {
+          running = false;
+          startBtn.textContent = 'Start';
+          statsEl.textContent = 'Stopped';
+          const stream = video.srcObject; if (stream) stream.getTracks().forEach(t => t.stop());
+        }
+      });
+
+      ttsBtn.addEventListener('click', () => {
+        ttsEnabled = !ttsEnabled;
+        ttsBtn.setAttribute('aria-pressed', String(ttsEnabled));
+      });
+
+      backendSel.addEventListener('change', async () => { await pickBackend(); });
+      thrEl.addEventListener('input', () => {
+        confThr = parseFloat(thrEl.value);
+      });
+      minAreaEl.addEventListener('input', () => {
+        minArea = parseFloat(minAreaEl.value);
+      });
+      profileSel.addEventListener('change', () => { if (profileSel.value) { applyProfile(profileSel.value); } });
+
+      let lastGeminiText = "";
+
+      geminiBtn.addEventListener('click', async () => {
+        guidanceEl.textContent = 'Gemini: capture...';
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        const b64 = dataUrl.split(',')[1];
+        try {
+          const res = await fetch(`${apiBase}/describe/gemini`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              image_b64: b64,
+              prompt: 'Décris précisément les produits/objets visibles (retail), marque/catégorie si lisible, risques éventuels.'
+            })
+          });
+          if (!res.ok) {
+            throw new Error(await res.text());
+          }
+          const data = await res.json();
+          const parts = data?.candidates?.[0]?.content?.parts || [];
+          const text = parts.map(p => p.text).filter(Boolean).join(' ').trim() || JSON.stringify(data);
+          lastGeminiText = text;
+          guidanceEl.textContent = `Gemini: ${text}`;
+          labelsEl.textContent = text;
+        } catch (err) {
+          console.error(err);
+          guidanceEl.textContent = `Gemini error: ${err.message}`;
+        }
+      });
+
+      groqBtn.addEventListener('click', async () => {
+        if (!lastGeminiText) {
+          guidanceEl.textContent = "Groq: lance Gemini d'abord";
+          return;
+        }
+        const profile = userProfileSel.value || 'default';
+        guidanceEl.textContent = 'Groq: envoi...';
+        try {
+          const res = await fetch(`${apiBase}/describe/groq`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              description: lastGeminiText,
+              profile
+            })
+          });
+          if (!res.ok) throw new Error(await res.text());
+          const data = await res.json();
+          const txt = data.structured ? JSON.stringify(data.structured) : data.raw_text || JSON.stringify(data);
+          guidanceEl.textContent = `Groq: ${txt}`;
+          labelsEl.textContent = txt;
+          if (ttsEnabled) speak(txt);
+        } catch (err) {
+          console.error(err);
+          guidanceEl.textContent = `Groq error: ${err.message}`;
+        }
+      });
+
+      // bootstrap
+      loadOntology();
+    </script>
+  </body>
+  </html>

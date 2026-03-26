@@ -1,0 +1,50 @@
+# Update train/val paths once your dataset is ready
+path: C:/datasets/vision360/merged_all
+train: images/train
+val: images/val
+
+names:
+  0: bakery
+  1: biscuits
+  2: bombons
+  3: canned
+  4: cereals
+  5: cheese
+  6: chips
+  7: choco
+  8: coffee
+  9: creme
+  10: driedfruitsandnuts
+  11: icetea
+  12: juices
+  13: milk
+  14: oil-vinegar
+  15: pasta
+  16: rice
+  17: sauce
+  18: snacks
+  19: softdrinks
+  20: soups
+  21: spices
+  22: spreads
+  23: tea
+  24: water
+  25: yoghurt
+  26: chocolate
+  27: beans
+  28: cake
+  29: candy
+  30: cereal
+  31: corn
+  32: fish
+  33: flour
+  34: honey
+  35: jam
+  36: juice
+  37: nuts
+  38: oil
+  39: soda
+  40: sugar
+  41: tomato_sauce
+  42: vinegar
+  43: product

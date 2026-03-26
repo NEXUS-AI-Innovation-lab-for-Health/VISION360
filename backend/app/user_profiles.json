@@ -1,0 +1,33 @@
+{
+  "default": {
+    "notes": "Profil générique PMR",
+    "allergies": [],
+    "conditions": [],
+    "preferences": ["éviter les zones glissantes", "priorité à la sécurité"]
+  },
+  "wheelchair_diabetic": {
+    "notes": "Utilisateur en fauteuil, diabétique",
+    "allergies": [],
+    "conditions": ["diabète"],
+    "preferences": ["éviter escaliers", "privilégier rampes et ascenseurs"],
+    "alerts": ["hypoglycémie: prévoir accès rapide à sucre ou boisson"]
+  },
+  "allergy_peanut": {
+    "notes": "Allergie sévère aux arachides",
+    "allergies": ["peanut", "arachide"],
+    "conditions": [],
+    "preferences": ["éviter snacks/produits à base d'arachide"]
+  },
+  "allergy_gluten": {
+    "notes": "Sensibilité gluten",
+    "allergies": ["gluten"],
+    "conditions": [],
+    "preferences": ["privilégier produits sans gluten"]
+  },
+  "visual_lowvision": {
+    "notes": "Déficience visuelle légère",
+    "allergies": [],
+    "conditions": ["low vision"],
+    "preferences": ["guidage clair gauche/droite", "alerte obstacles en hauteur et au sol"]
+  }
+}

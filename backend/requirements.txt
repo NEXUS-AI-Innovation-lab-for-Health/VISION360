@@ -1,0 +1,55 @@
+# =============================================================================
+# Backend Vision360 - Dépendances Python
+# =============================================================================
+# Installation : pip install -r requirements.txt
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Framework Web
+# -----------------------------------------------------------------------------
+# FastAPI : Framework web moderne et performant pour APIs REST
+# - Documentation automatique OpenAPI/Swagger
+# - Validation des données avec Pydantic
+# - Support asynchrone natif
+fastapi==0.115.0
+
+# Uvicorn : Serveur ASGI haute performance
+# - [standard] inclut uvloop et httptools pour meilleures performances
+uvicorn[standard]==0.30.6
+
+# -----------------------------------------------------------------------------
+# Client HTTP
+# -----------------------------------------------------------------------------
+# httpx : Client HTTP moderne avec support async
+# - Utilisé pour les appels aux APIs Gemini et Groq
+# - Alternative moderne à requests avec support asyncio
+httpx==0.27.2
+
+# -----------------------------------------------------------------------------
+# Base de données
+# -----------------------------------------------------------------------------
+# SQLAlchemy : ORM Python pour bases de données relationnelles
+# - Définition des modèles avec classes Python
+# - Requêtes via API Python au lieu de SQL brut
+# - Support PostgreSQL, SQLite, MySQL
+sqlalchemy==2.0.35
+
+# psycopg2-binary : Driver PostgreSQL pour Python
+# - Connexion à PostgreSQL depuis SQLAlchemy
+# - Version "binary" = pas besoin de compiler
+psycopg2-binary==2.9.9
+
+# -----------------------------------------------------------------------------
+# Validation de données
+# -----------------------------------------------------------------------------
+# pydantic[email] : Validation avec support EmailStr
+# - Déjà inclus avec FastAPI, mais version explicite pour email
+pydantic[email]==2.9.2
+
+# -----------------------------------------------------------------------------
+# Tests
+# -----------------------------------------------------------------------------
+# pytest : Framework de tests unitaires
+# - Utilisé pour les tests du backend
+# - Exécution : pytest tests/ -v
+pytest==8.3.2

@@ -1,0 +1,100 @@
+# =============================================================================
+# Docker Compose - Vision360
+# =============================================================================
+# Configuration pour déployer l'ensemble de l'écosystème Vision360 :
+# - Backend FastAPI (API REST + intégration Gemini/Groq)
+# - Frontend Next.js (interface web)
+#
+# Utilisation :
+#   docker compose up --build        # Build et lancement
+#   docker compose up -d             # Lancement en arrière-plan
+#   docker compose logs -f           # Voir les logs
+#   docker compose down              # Arrêter les services
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Base de données PostgreSQL
+  # ---------------------------------------------------------------------------
+  # Stockage persistant pour :
+  # - Utilisateurs et profils PMR
+  # - Allergies et conditions médicales
+  # - Préférences évolutives (aime/n'aime pas)
+  # - Historique des interactions avec l'IA
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine       # Image officielle PostgreSQL légère
+    container_name: vision360_db
+    ports:
+      - "5432:5432"                 # Port PostgreSQL standard
+    environment:
+      POSTGRES_USER: postgres       # Utilisateur par défaut
+      POSTGRES_PASSWORD: postgres   # Mot de passe (changer en production!)
+      POSTGRES_DB: vision360        # Nom de la base de données
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Persistance des données
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Backend API - FastAPI Python
+  # ---------------------------------------------------------------------------
+  # Service principal exposant l'API REST pour :
+  # - Analyse d'images via Gemini (/api/describe/gemini)
+  # - Recommandations via Groq (/api/describe/groq)
+  # - Enrichissement détections (/api/guidance/*)
+  # - Gestion utilisateurs et préférences (/api/users/*)
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: .                    # Contexte = racine du projet
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"                 # Port exposé pour l'API
+    env_file:
+      - .env                        # Charger les variables depuis .env
+    environment:
+      - PYTHONUNBUFFERED=1          # Logs en temps réel
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/vision360
+    depends_on:
+      postgres:
+        condition: service_healthy  # Attendre que PostgreSQL soit prêt
+    restart: unless-stopped         # Redémarrage auto sauf arrêt manuel
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Frontend Web - Next.js React
+  # ---------------------------------------------------------------------------
+  # Application web pour :
+  # - Configuration du profil utilisateur
+  # - Capture webcam et analyse
+  # - Affichage des recommandations
+  # ---------------------------------------------------------------------------
+  web_next:
+    build:
+      context: ./web_next
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"                 # Port exposé pour le frontend
+    environment:
+      # URL de l'API backend (accessible depuis le navigateur)
+      NEXT_PUBLIC_API_BASE: "http://localhost:8000/api"
+    depends_on:
+      backend:
+        condition: service_healthy  # Attendre que le backend soit prêt
+    restart: unless-stopped
+
+# -----------------------------------------------------------------------------
+# Volumes persistants
+# -----------------------------------------------------------------------------
+volumes:
+  postgres_data:                    # Données PostgreSQL persistantes
