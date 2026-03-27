@@ -1,7 +1,7 @@
 """
 Module de configuration de la base de données.
 
-Ce module configure la connexion à PostgreSQL avec SQLAlchemy
+Ce module configure la connexion à PostgreSQL avec SQLAlchemy,
 et définit la session de base de données.
 """
 

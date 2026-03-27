@@ -6,10 +6,10 @@ Ce module fournit deux endpoints principaux :
 - /describe/groq : Génération de recommandations avec Groq LLM
 
 Pipeline typique :
-1. L'utilisateur envoie une image en base64
-2. Gemini analyse l'image et retourne une description textuelle
-3. La description est envoyée à Groq avec le profil utilisateur
-4. Groq génère des recommandations personnalisées (risques, actions)
+1. L'utilisateur envoie une image en base64.
+2. Gemini analyse l'image et retourne une description textuelle.
+3. La description est envoyée à Groq avec le profil utilisateur.
+4. Groq génère des recommandations personnalisées (risques, actions).
 """
 
 import os
