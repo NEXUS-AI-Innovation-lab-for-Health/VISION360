@@ -75,8 +75,16 @@ def startup_event():
 
     Initialise la base de données en créant toutes les tables
     si elles n'existent pas encore.
+
+    Si la base est indisponible (ex: DATABASE_URL non configurée sur
+    Cloud Run), l'API démarre quand même : seules les routes utilisant
+    la base (/api/users) seront en erreur, les routes IA restent
+    fonctionnelles.
     """
-    init_db()
+    try:
+        init_db()
+    except Exception as exc:
+        print(f"[WARN] Base de données indisponible, démarrage sans DB: {exc}", flush=True)
 
 # Configuration CORS permissive pour le développement
 # Permet à toutes les origines d'accéder à l'API

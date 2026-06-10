@@ -1,0 +1,24 @@
+# =============================================================================
+# Cloud Build - Backend Vision360
+# =============================================================================
+# Construit l'image Docker du backend et la pousse vers Artifact Registry.
+# Usage :
+#   gcloud builds submit --config cloudbuild.yaml .
+# Puis déploiement :
+#   gcloud run deploy vision360-backend \
+#     --image europe-west1-docker.pkg.dev/PROJECT_ID/vision360/vision360-backend:latest \
+#     --region europe-west1
+# =============================================================================
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/vision360/vision360-backend:latest'
+      - '-f'
+      - 'backend/Dockerfile'
+      - '.'
+
+images:
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/vision360/vision360-backend:latest'

@@ -21,8 +21,11 @@ DATABASE_URL = os.getenv(
 # DATABASE_URL = "sqlite:///./vision360.db"
 
 # Création du moteur SQLAlchemy
+# check_same_thread=False est requis pour SQLite avec FastAPI
+# (plusieurs threads accèdent à la même connexion)
 engine = create_engine(
     DATABASE_URL,
+    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
     # echo=True  # Décommenter pour voir les requêtes SQL (debug)
 )
 
