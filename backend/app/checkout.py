@@ -155,13 +155,26 @@ async def _call_groq(system_prompt: str, user_prompt: str, timeout: int = 60) ->
     return data.get("choices", [{}])[0].get("message", {}).get("content", "")
 
 
+def _qty(value, default: int = 1) -> int:
+    """
+    Convertit une quantité renvoyée par le LLM en entier sûr.
+
+    Les LLM renvoient parfois "2", 2.0, null ou du texte : on ne doit
+    jamais planter sur une quantité mal formée.
+    """
+    try:
+        return max(1, int(float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
 def _items_to_text(items: list[dict]) -> str:
     """Formate une liste d'articles en texte lisible pour un prompt LLM."""
     if not items:
         return "(aucun article)"
     lines = []
     for it in items:
-        qty = it.get("quantity", 1)
+        qty = _qty(it.get("quantity"))
         name = it.get("name", "article inconnu")
         lines.append(f"- {qty} x {name}")
     return "\n".join(lines)
@@ -171,9 +184,9 @@ def _spoken_list(items: list[dict]) -> str:
     """Formate une liste d'articles en phrase naturelle pour la lecture vocale."""
     parts = []
     for it in items:
-        qty = it.get("quantity", 1)
-        name = it.get("name", "article inconnu")
-        parts.append(f"{qty} {name}" if qty and qty > 1 else str(name))
+        qty = _qty(it.get("quantity"))
+        name = str(it.get("name", "article inconnu"))
+        parts.append(f"{qty} {name}" if qty > 1 else name)
     if not parts:
         return ""
     if len(parts) == 1:
@@ -323,7 +336,11 @@ async def belt_scan(payload: ImageRequest) -> dict:
     unsure = [it for it in items if it.get("confidence") == "low"]
     session["uncertain_items"] = [it["name"] for it in unsure]
 
-    msg = f"J'ai détecté {sum(int(it.get('quantity', 1)) for it in items)} article(s) sur le tapis : {_spoken_list(sure)}."
+    total_count = sum(_qty(it.get("quantity")) for it in items)
+    if sure:
+        msg = f"J'ai détecté {total_count} article(s) sur le tapis : {_spoken_list(sure)}."
+    else:
+        msg = f"J'ai détecté {total_count} article(s) sur le tapis."
     if unsure:
         msg += (
             f" Attention, un ou plusieurs articles ne sont pas identifiés avec certitude : "
@@ -549,9 +566,9 @@ async def ticket_scan(payload: ImageRequest) -> dict:
         }
 
     items = [it for it in parsed.get("items", []) if isinstance(it, dict) and it.get("name")]
-    total = parsed.get("total", 0)
-    currency = parsed.get("currency", "EUR")
-    nb = sum(int(it.get("quantity", 1)) for it in items)
+    total = parsed.get("total") or 0
+    currency = str(parsed.get("currency") or "EUR")
+    nb = sum(_qty(it.get("quantity")) for it in items)
 
     session["ticket"] = {"items": items, "total": total, "currency": currency}
 

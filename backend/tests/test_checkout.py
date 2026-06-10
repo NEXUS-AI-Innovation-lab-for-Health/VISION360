@@ -307,6 +307,45 @@ def test_reconcile_mismatch(monkeypatch):
 # Helpers
 # ============================================================================
 
+def test_belt_scan_tolerates_malformed_quantities(monkeypatch):
+    # Le LLM peut renvoyer des quantités en string, float ou null :
+    # l'endpoint ne doit jamais renvoyer une erreur 500 pour autant.
+    _mock_gemini(monkeypatch, {
+        "empty": False,
+        "items": [
+            {"name": "yaourt", "quantity": "2", "confidence": "high"},
+            {"name": "pain", "quantity": None, "confidence": "high"},
+            {"name": "lait", "quantity": 1.0, "confidence": "low"},
+        ],
+    })
+    sid = _start()
+    r = client.post("/api/checkout/belt/scan", json={"session_id": sid, "image_b64": FAKE_IMG})
+    assert r.status_code == 200
+    assert "yaourt" in r.json()["voice_message"]
+
+
+def test_ticket_scan_tolerates_null_currency_and_total(monkeypatch):
+    _mock_gemini(monkeypatch, {
+        "readable": True,
+        "items": [{"name": "PAIN", "quantity": "1", "unit_price": 2.1, "line_total": 2.1}],
+        "total": None,
+        "currency": None,
+    })
+    sid = _start()
+    r = client.post("/api/checkout/ticket/scan", json={"session_id": sid, "image_b64": FAKE_IMG})
+    assert r.status_code == 200
+    assert r.json()["readable"] is True
+
+
+def test_qty_helper():
+    assert checkout._qty(2) == 2
+    assert checkout._qty("2") == 2
+    assert checkout._qty(2.7) == 2
+    assert checkout._qty(None) == 1
+    assert checkout._qty("abc") == 1
+    assert checkout._qty(-3) == 1
+
+
 def test_extract_json_variants():
     assert checkout._extract_json('{"a": 1}') == {"a": 1}
     assert checkout._extract_json('```json\n{"a": 1}\n```') == {"a": 1}
