@@ -17,6 +17,8 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'checkout_screen.dart';
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // POINT D'ENTRÉE
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3852,6 +3854,33 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 );
               }),
+            ),
+          ),
+        ),
+
+        // ── Mode passage en caisse (flux guidé complet) ────────────────────
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                // L'écran checkout gère sa propre caméra : libérer la nôtre
+                if (_cameraReady) await _stopCamera();
+                if (!mounted) return;
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CheckoutScreen(
+                      apiBase: _apiBaseController.text.trim(),
+                      largeButtons: _largeButtons,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.point_of_sale, size: 20),
+              label: Text(
+                'Mode passage en caisse (assistant guidé)',
+                style: TextStyle(fontSize: _fs(14)),
+              ),
             ),
           ),
         ),
