@@ -62,6 +62,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String _statusMessage = '';
   bool _statusIsAlert = false;
 
+  // ── Timer de progression (feedback pendant les analyses) ────────────────
+  // Affiche un compte à rebours d'environ 5 s pour montrer à l'utilisateur
+  // que l'action est en cours (contrainte ODT : réponse estimée < 3-5 s).
+  Timer? _progressTimer;
+  int _elapsedSeconds = 0;
+  static const int _estimatedSeconds = 5;
+
+  // ── Compte à rebours avant le rapprochement ticket/caddie (F5) ───────────
+  // L'ODT impose que F5 démarre automatiquement après F4, mais que
+  // l'utilisateur puisse refuser cette étape : ce délai lui laisse une
+  // fenêtre pour appuyer sur "Ignorer" avant le lancement automatique.
+  Timer? _reconcileCountdown;
+  int _reconcileRemaining = 0;
+  static const int _reconcileDelaySeconds = 5;
+
   // ── Données de session (miroir local de l'état backend) ─────────────────
   List<Map<String, dynamic>> _beltItems = [];
   List<Map<String, dynamic>> _cartItems = [];
@@ -114,6 +129,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   void dispose() {
+    _progressTimer?.cancel();
+    _reconcileCountdown?.cancel();
     _camera?.dispose();
     _tts.stop();
     // Terminer la session backend en arrière-plan (best effort)
@@ -186,8 +203,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _scanBelt() async {
     if (_sessionId == null || _busy) return;
-    setState(() => _busy = true);
-    _setStatus('Analyse du tapis en cours...');
+    _startProgress('Analyse du tapis en cours...');
     try {
       final b64 = await _capture();
       if (b64 == null) return;
@@ -205,7 +221,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       });
       _setStatus(data['voice_message']?.toString() ?? '', speak: true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      _stopProgress();
     }
   }
 
@@ -215,8 +231,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _checkTransfer() async {
     if (_sessionId == null || _busy) return;
-    setState(() => _busy = true);
-    _setStatus('Vérification du transfert...');
+    _startProgress('Vérification du transfert...');
     try {
       final b64 = await _capture();
       if (b64 == null) return;
@@ -237,7 +252,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final hasAlert = (data['uncertain'] as List<dynamic>? ?? []).isNotEmpty;
       _setStatus(data['voice_message']?.toString() ?? '', alert: hasAlert, speak: true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      _stopProgress();
     }
   }
 
@@ -247,8 +262,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _checkForgotten({bool withCartPhoto = false}) async {
     if (_sessionId == null || _busy) return;
-    setState(() => _busy = true);
-    _setStatus(withCartPhoto
+    _startProgress(withCartPhoto
         ? 'Scan du caddie et vérification des oublis...'
         : 'Vérification des oublis...');
     try {
@@ -267,7 +281,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       setState(() => _step = CheckoutStep.ticket);
       _setStatus(data['voice_message']?.toString() ?? '', alert: !allOk, speak: true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      _stopProgress();
     }
   }
 
@@ -277,8 +291,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _scanTicket() async {
     if (_sessionId == null || _busy) return;
-    setState(() => _busy = true);
-    _setStatus('Lecture du ticket en cours...');
+    _startProgress('Lecture du ticket en cours...');
     try {
       final b64 = await _capture();
       if (b64 == null) return;
@@ -299,11 +312,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         _ticketTotal = (data['total'] as num?) ?? 0;
         _step = CheckoutStep.reconcile;
       });
-      _setStatus(data['voice_message']?.toString() ?? '', speak: true);
-      // Enchaînement automatique sur la vérification de cohérence (F5)
-      await _reconcile();
+      // Enchaînement automatique sur la vérification de cohérence (F5),
+      // avec un délai de 5 s laissant à l'utilisateur le temps de refuser.
+      final summary = data['voice_message']?.toString() ?? '';
+      _setStatus(
+        '$summary La vérification avec votre caddie démarre dans '
+        '$_reconcileDelaySeconds secondes. Appuyez sur Ignorer pour la passer.',
+        speak: true,
+      );
+      _startReconcileCountdown();
     } finally {
-      if (mounted) setState(() => _busy = false);
+      _stopProgress();
     }
   }
 
@@ -311,18 +330,48 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // FONCTIONNALITÉ 5 : rapprochement ticket / caddie
   // ──────────────────────────────────────────────────────────────────────────
 
+  /// Lance le compte à rebours de 5 s avant le rapprochement automatique.
+  /// L'utilisateur peut l'interrompre ("Ignorer") ou le court-circuiter
+  /// en lançant la vérification immédiatement.
+  void _startReconcileCountdown() {
+    _reconcileCountdown?.cancel();
+    setState(() => _reconcileRemaining = _reconcileDelaySeconds);
+    _reconcileCountdown = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return;
+      final left = _reconcileDelaySeconds - t.tick;
+      if (left <= 0) {
+        _cancelReconcileCountdown();
+        _reconcile();
+      } else {
+        setState(() => _reconcileRemaining = left);
+      }
+    });
+  }
+
+  void _cancelReconcileCountdown() {
+    _reconcileCountdown?.cancel();
+    _reconcileCountdown = null;
+    if (mounted) setState(() => _reconcileRemaining = 0);
+  }
+
   Future<void> _reconcile() async {
     if (_sessionId == null) return;
-    _setStatus('Comparaison du ticket avec votre caddie...');
-    final data = await _post('/reconcile', {'session_id': _sessionId});
-    if (data == null) return;
+    _cancelReconcileCountdown();
+    _startProgress('Comparaison du ticket avec votre caddie...');
+    try {
+      final data = await _post('/reconcile', {'session_id': _sessionId});
+      if (data == null) return;
 
-    final match = data['match'] == true;
-    setState(() => _step = CheckoutStep.done);
-    _setStatus(data['voice_message']?.toString() ?? '', alert: !match, speak: true);
+      final match = data['match'] == true;
+      setState(() => _step = CheckoutStep.done);
+      _setStatus(data['voice_message']?.toString() ?? '', alert: !match, speak: true);
+    } finally {
+      _stopProgress();
+    }
   }
 
   void _skipReconcile() {
+    _cancelReconcileCountdown();
     setState(() => _step = CheckoutStep.done);
     _setStatus('Vérification de cohérence ignorée. Passage en caisse terminé.', speak: true);
   }
@@ -330,6 +379,33 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // ──────────────────────────────────────────────────────────────────────────
   // HELPERS UI
   // ──────────────────────────────────────────────────────────────────────────
+
+  /// Démarre une action longue : passe en mode occupé, affiche le message
+  /// et lance le timer de progression visible (~5 s) pour montrer à
+  /// l'utilisateur que l'analyse est en cours.
+  void _startProgress(String message) {
+    _progressTimer?.cancel();
+    setState(() {
+      _busy = true;
+      _elapsedSeconds = 0;
+    });
+    _setStatus(message);
+    _progressTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return;
+      setState(() => _elapsedSeconds = t.tick);
+    });
+  }
+
+  /// Termine l'action en cours : arrête le timer et libère le mode occupé.
+  void _stopProgress() {
+    _progressTimer?.cancel();
+    _progressTimer = null;
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _elapsedSeconds = 0;
+    });
+  }
 
   void _setStatus(String message, {bool alert = false, bool speak = false}) {
     if (!mounted) return;
@@ -375,7 +451,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return 'Après le paiement, visez le ticket de caisse '
             '(imprimé ou affiché à l\'écran) puis lancez la lecture.';
       case CheckoutStep.reconcile:
-        return 'Comparaison automatique entre le ticket et votre caddie.';
+        return 'La comparaison entre le ticket et votre caddie démarre '
+            'automatiquement dans quelques secondes. Vous pouvez la lancer '
+            'immédiatement ou l\'ignorer.';
       case CheckoutStep.done:
         return 'Vous pouvez fermer cet écran ou recommencer une session.';
     }
@@ -440,6 +518,59 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
+
+            // ── Timer de progression pendant les analyses (~5 s) ─────────
+            if (_busy)
+              Container(
+                padding: const EdgeInsets.all(14),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: cs.secondaryContainer.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: cs.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _elapsedSeconds < _estimatedSeconds
+                                ? 'Analyse en cours... environ '
+                                    '${_estimatedSeconds - _elapsedSeconds} s restantes'
+                                : 'Analyse en cours depuis $_elapsedSeconds s, '
+                                    'merci de patienter',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    LinearProgressIndicator(
+                      // Barre qui se remplit sur ~5 s, puis passe en mode
+                      // indéterminé si l'analyse prend plus longtemps.
+                      value: _elapsedSeconds >= _estimatedSeconds
+                          ? null
+                          : _elapsedSeconds / _estimatedSeconds,
+                      minHeight: 8,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ],
+                ),
+              ),
 
             // ── Message de statut / alerte ───────────────────────────────
             if (_statusMessage.isNotEmpty)
@@ -564,6 +695,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ];
       case CheckoutStep.reconcile:
         return [
+          if (_reconcileRemaining > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                'Lancement automatique dans $_reconcileRemaining s...',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
           action('Vérifier la cohérence ticket/caddie', Icons.rule, _reconcile),
           const SizedBox(height: 10),
           action('Ignorer cette vérification', Icons.skip_next, _skipReconcile,
