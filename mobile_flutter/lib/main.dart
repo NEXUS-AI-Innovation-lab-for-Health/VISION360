@@ -623,6 +623,141 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Identifie un produit via son code-barres : Gemini lit les chiffres sur la
+  /// photo, puis Open Food Facts fournit les données certifiées (nom, marque,
+  /// allergènes officiels croisés avec le profil, Nutri-Score).
+  Future<void> _scanBarcode() async {
+    if (!_cameraReady) {
+      _showSnack('Activez la caméra d\'abord.', isError: true);
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final b64 = await _captureImage();
+      if (b64 == null) return;
+      final apiBase = _apiBaseController.text.trim();
+      final resp = await http.post(
+        Uri.parse('$apiBase/products/identify'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'image_b64': b64,
+          'allergies': _splitList(_allergiesController.text),
+        }),
+      );
+      if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+
+      final voice = (data['voice_message'] ?? '').toString();
+      if (_ttsEnabled && voice.isNotEmpty) {
+        await _tts.stop();
+        _tts.speak(voice);
+      }
+
+      if (data['found'] != true) {
+        _showSnack(voice, isError: true);
+        return;
+      }
+      if (!mounted) return;
+      _showBarcodeResult(data);
+    } catch (e) {
+      _showSnack('Identification impossible (réseau ou serveur).', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Affiche la fiche produit Open Food Facts avec option d'ajout au caddie.
+  void _showBarcodeResult(Map<String, dynamic> data) {
+    final cs = Theme.of(context).colorScheme;
+    final alerts = (data['profile_allergen_alerts'] as List<dynamic>? ?? []);
+    final allergens = (data['allergens'] as List<dynamic>? ?? []);
+    final hasAlert = alerts.isNotEmpty;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  hasAlert ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                  color: hasAlert ? cs.error : cs.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${data['name'] ?? 'Produit'}'
+                    '${(data['quantity'] ?? '').toString().isNotEmpty ? ' — ${data['quantity']}' : ''}',
+                    style: TextStyle(fontSize: _fs(17), fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if ((data['brand'] ?? '').toString().isNotEmpty)
+              Text('Marque : ${data['brand']}', style: TextStyle(fontSize: _fs(14))),
+            if ((data['nutriscore'] ?? '').toString().isNotEmpty)
+              Text('Nutri-score : ${data['nutriscore']}', style: TextStyle(fontSize: _fs(14))),
+            if (allergens.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Allergènes : ${allergens.join(', ')}',
+                  style: TextStyle(
+                    fontSize: _fs(14),
+                    color: hasAlert ? cs.error : cs.onSurfaceVariant,
+                    fontWeight: hasAlert ? FontWeight.w700 : FontWeight.normal,
+                  ),
+                ),
+              ),
+            if (hasAlert)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '⚠ Contient un allergène de votre profil : ${alerts.join(', ')}',
+                  style: TextStyle(
+                    fontSize: _fs(14),
+                    color: cs.error,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              style: _primaryStyle(context),
+              icon: const Icon(Icons.add_shopping_cart, size: 20),
+              label: Text('Ajouter au caddie', style: TextStyle(fontSize: _fs(15))),
+              onPressed: () {
+                final item = {
+                  'name': (data['name'] ?? 'Produit').toString(),
+                  'summary': 'Code-barres ${data['barcode']} — ${data['brand'] ?? ''}'.trim(),
+                  'date': DateTime.now().toLocal().toString().substring(0, 16),
+                };
+                setState(() => _cartItems.add(item));
+                _saveCart();
+                Navigator.of(ctx).pop();
+                _showSnack('Ajouté au caddie : ${item['name']}');
+                if (_ttsEnabled) _tts.speak('Ajouté au caddie : ${item['name']}');
+              },
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('Fermer', style: TextStyle(fontSize: _fs(14))),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _saveAccessibility() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
@@ -3920,6 +4055,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
           ),
         ),
+
+        // ── Identification par code-barres (Open Food Facts) ───────────────
+        if (_caddieMode == 0)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: OutlinedButton.icon(
+                onPressed: (_isLoading || !_cameraReady) ? null : _scanBarcode,
+                icon: const Icon(Icons.qr_code_2, size: 20),
+                label: Text(
+                  'Identifier par code-barres',
+                  style: TextStyle(fontSize: _fs(14)),
+                ),
+              ),
+            ),
+          ),
 
         // ── Résultat vérification ──────────────────────────────────────────
         if (_caddieMode != 0 && _hasResults && _groqStructured != null)

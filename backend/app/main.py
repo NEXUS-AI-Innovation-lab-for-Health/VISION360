@@ -58,6 +58,7 @@ from .guidance import router as guidance_router
 from .describe import router as describe_router
 from .users import router as users_router
 from .checkout import router as checkout_router
+from .products import router as products_router
 from .database import init_db
 
 # Création de l'application FastAPI avec métadonnées
@@ -167,3 +168,4 @@ app.include_router(guidance_router, prefix="/api/guidance", tags=["guidance"])
 app.include_router(describe_router, prefix="/api", tags=["describe"])
 app.include_router(users_router, prefix="/api/users", tags=["users"])
 app.include_router(checkout_router, prefix="/api/checkout", tags=["checkout"])
+app.include_router(products_router, prefix="/api/products", tags=["products"])
