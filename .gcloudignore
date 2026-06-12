@@ -1,0 +1,8 @@
+# Fichiers envoyés à Cloud Build : uniquement le nécessaire au backend.
+# (syntaxe gitignore : on exclut tout puis on ré-inclut backend/)
+*
+!cloudbuild.yaml
+!backend
+!backend/**
+backend/**/__pycache__
+backend/tests/__pycache__
