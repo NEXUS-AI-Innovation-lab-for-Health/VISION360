@@ -32,6 +32,19 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copier le code source
 COPY . .
 
+# ---------------------------------------------------------------------------
+# URL de l'API backend
+# ---------------------------------------------------------------------------
+# Next.js remplace les références à process.env.NEXT_PUBLIC_* par leur valeur
+# littérale AU MOMENT DU BUILD. Cette variable doit donc être connue ici, et
+# non au démarrage du conteneur.
+#
+# Valeur par défaut : le backend de la stack docker-compose sur la machine
+# hôte. Pour pointer ailleurs :
+#   docker build --build-arg NEXT_PUBLIC_API_BASE=https://mon-api/api ./web_next
+ARG NEXT_PUBLIC_API_BASE=http://localhost:8000/api
+ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
+
 # Désactiver la télémétrie Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
 

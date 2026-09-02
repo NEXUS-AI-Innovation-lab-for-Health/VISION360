@@ -2,6 +2,28 @@
 
 Ce guide couvre le déploiement de Vision360 en environnement de production.
 
+> ### ⚠️ Statut de la partie Google Cloud de ce document
+>
+> **Les comptes Google Cloud du projet ont été supprimés**, afin de ne pas être
+> prélevés à l'expiration des crédits gratuits. Le service Cloud Run
+> `vision360-backend` n'existe plus, et l'URL
+> `https://vision360-backend-...run.app` ne répond plus.
+>
+> Les sections « Google Cloud Run » et « Vercel » ci-dessous sont **conservées à
+> titre de référence documentaire** : elles décrivent l'architecture de
+> déploiement telle qu'elle a réellement été mise en œuvre pendant le projet, et
+> restent rejouables par quiconque dispose de son propre compte.
+>
+> **Pour déployer le projet aujourd'hui, la voie recommandée est Docker Compose
+> en auto-hébergement**, qui ne nécessite aucun compte cloud ni aucun moyen de
+> paiement :
+>
+> 👉 **[INSTALLATION_LINUX.md](INSTALLATION_LINUX.md)** — installation et
+> déploiement Linux détaillés (Docker, pare-feu, reverse proxy, HTTPS,
+> sauvegardes)
+> 👉 **[../database/README.md](../database/README.md)** — exports DUMP et scripts
+> de création de la base
+
 ## Options de déploiement
 
 | Composant | Service recommandé | Alternative |

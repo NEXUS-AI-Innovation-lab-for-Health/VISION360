@@ -5,6 +5,27 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// =============================================================================
+// Signature de l'APK / AAB de release
+// =============================================================================
+// Les paramètres de signature sont lus depuis android/key.properties, un
+// fichier NON VERSIONNÉ contenant les mots de passe du keystore.
+//
+// Si le fichier est absent (cas d'un clone frais, d'une CI, ou d'un simple
+// test), la build de release retombe sur la clé de debug : `flutter build apk
+// --release` reste donc toujours fonctionnel, seul l'artefact produit n'est
+// alors pas distribuable.
+//
+// Voir : guide_apk_.../GUIDE_GENERATION_APK.md, section « Signature »
+// Modèle : android/key.properties.example
+// =============================================================================
+def keystorePropertiesFile = rootProject.file("key.properties")
+def keystoreProperties = new Properties()
+def hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
 android {
     namespace = "com.example.mobile_flutter"
     compileSdk = 36
@@ -30,11 +51,30 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        release {
+            // Renseigné uniquement si android/key.properties est présent.
+            if (hasReleaseKeystore) {
+                storeFile = file(keystoreProperties["storeFile"])
+                storePassword = keystoreProperties["storePassword"]
+                keyAlias = keystoreProperties["keyAlias"]
+                keyPassword = keystoreProperties["keyPassword"]
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            // Keystore de release si disponible, clé de debug sinon.
+            signingConfig = hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
+
+            // Réduction de la taille de l'APK : suppression du code et des
+            // ressources non atteints. Désactivé par défaut car R8 peut
+            // retirer des classes utilisées par réflexion dans les plugins
+            // (speech_to_text, flutter_tts). Activer puis TESTER l'APK.
+            minifyEnabled = false
+            shrinkResources = false
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
     }
 }

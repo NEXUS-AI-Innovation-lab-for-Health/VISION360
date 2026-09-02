@@ -24,6 +24,12 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Besoin de la camera pour capturer les obstacles et produits.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Besoin du micro pour les commandes vocales de l'assistant.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Besoin de la reconnaissance vocale pour comprendre vos commandes.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Besoin de la position pour le guidage pieton et les lieux accessibles a proximite.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

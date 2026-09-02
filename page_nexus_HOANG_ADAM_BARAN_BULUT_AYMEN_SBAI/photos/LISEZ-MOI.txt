@@ -1,0 +1,21 @@
+PHOTOS DE L'EQUIPE
+==================
+
+Deposer ici les trois portraits, sous ces noms exacts :
+
+    aymen_sbai.jpg
+    adam_hoang.jpg
+    baran_bulut.jpg
+
+Les extensions .jpg, .jpeg, .png et .webp sont acceptees.
+
+Le script se charge du reste : recadrage carre centre, masque circulaire
+et redimensionnement. Les photos peuvent donc etre de n'importe quelle
+taille et de n'importe quelles proportions.
+
+Une fois les fichiers deposes, relancer depuis le dossier parent :
+
+    python generer_page.py
+
+Tant qu'une photo est absente, un medaillon provisoire portant les
+initiales est insere a sa place.

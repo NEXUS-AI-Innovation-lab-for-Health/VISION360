@@ -33,6 +33,11 @@ services:
       POSTGRES_DB: vision360        # Nom de la base de données
     volumes:
       - postgres_data:/var/lib/postgresql/data  # Persistance des données
+      # Script de création de la base, joué automatiquement par PostgreSQL
+      # au TOUT PREMIER démarrage (quand le volume est encore vide).
+      # Monté en lecture seule : le conteneur ne peut pas altérer le dépôt.
+      # Pour le rejouer : docker compose down -v && docker compose up -d
+      - ./database/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -83,11 +88,19 @@ services:
     build:
       context: ./web_next
       dockerfile: Dockerfile
+      args:
+        # IMPORTANT : dans Next.js, une variable NEXT_PUBLIC_* est figée
+        # DANS LE BUNDLE au moment du BUILD, pas lue à l'exécution.
+        # Elle doit donc être passée ici en build arg : la définir uniquement
+        # dans "environment" ci-dessous serait sans effet côté navigateur,
+        # et l'application retomberait sur l'URL Cloud Run codée en dur
+        # dans src/app/page.tsx (qui n'existe plus).
+        NEXT_PUBLIC_API_BASE: "${NEXT_PUBLIC_API_BASE:-http://localhost:8000/api}"
     ports:
       - "3000:3000"                 # Port exposé pour le frontend
     environment:
-      # URL de l'API backend (accessible depuis le navigateur)
-      NEXT_PUBLIC_API_BASE: "http://localhost:8000/api"
+      # Conservée pour le rendu côté serveur de Next.js
+      NEXT_PUBLIC_API_BASE: "${NEXT_PUBLIC_API_BASE:-http://localhost:8000/api}"
     depends_on:
       backend:
         condition: service_healthy  # Attendre que le backend soit prêt

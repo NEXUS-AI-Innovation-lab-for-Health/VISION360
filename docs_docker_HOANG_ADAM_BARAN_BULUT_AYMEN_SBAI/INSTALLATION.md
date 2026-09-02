@@ -2,6 +2,20 @@
 
 Ce guide détaille l'installation complète du projet Vision360, que ce soit via Docker (recommandé) ou manuellement.
 
+> ### 📌 À lire en premier
+>
+> **L'infrastructure Google Cloud Run du projet a été supprimée** (comptes fermés
+> pour éviter toute facturation). L'URL `https://vision360-backend-...run.app`
+> ne répond donc plus.
+>
+> Le projet fonctionne à l'identique en local : il suffit de **recréer les
+> conteneurs Docker**, de **créer ses propres clés d'API gratuites** (Gemini et
+> Groq) et de **relier le client au backend local**. Aucune modification de code
+> n'est nécessaire.
+>
+> 👉 **Procédure pas à pas sous Linux : [INSTALLATION_LINUX.md](INSTALLATION_LINUX.md)**
+> 👉 **Base de données (dump + scripts de création) : [../database/README.md](../database/README.md)**
+
 ## Prérequis
 
 ### Obligatoires

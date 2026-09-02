@@ -1,0 +1,33 @@
+# =============================================================================
+# Vision360 - Modèle de configuration de signature Android
+# =============================================================================
+# Copier ce fichier vers android/key.properties et renseigner vos valeurs :
+#   cp android/key.properties.example android/key.properties
+#   chmod 600 android/key.properties
+#
+# ⚠️ NE JAMAIS COMMITTER android/key.properties NI LE FICHIER .jks
+#
+# Si android/key.properties est absent, la build de release retombe
+# automatiquement sur la clé de debug : `flutter build apk --release`
+# fonctionne toujours, mais l'APK produit n'est pas distribuable.
+#
+# Création du keystore :
+#   keytool -genkey -v -keystore ~/vision360-release.jks \
+#           -keyalg RSA -keysize 2048 -validity 10000 -alias vision360
+#
+# Voir : guide_apk_.../GUIDE_GENERATION_APK.md, section 6
+# =============================================================================
+
+# Mot de passe du keystore (première question posée par keytool)
+storePassword=CHANGEZ_MOI
+
+# Mot de passe de la clé (souvent identique au précédent)
+keyPassword=CHANGEZ_MOI
+
+# Alias de la clé, celui passé à l'option -alias de keytool
+keyAlias=vision360
+
+# Chemin ABSOLU vers le fichier .jks
+# Linux / macOS : /home/utilisateur/vision360-release.jks
+# Windows       : C:/Users/utilisateur/vision360-release.jks  (slashs, pas d'antislashs)
+storeFile=/chemin/absolu/vers/vision360-release.jks
