@@ -101,7 +101,3 @@ __MACOSX/
 # ---- POC WEB ----
 poc-web/vendor/
 poc-web/vendor/**
-
-# ---- LIVRABLES / GENERES ----
-*.zip
-page_nexus_*/.build/
